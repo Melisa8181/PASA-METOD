@@ -2,31 +2,58 @@ name: PASA Backend Tests
 
 on:
   push:
-    branches: ["main", "dev"]
+    branches: [ "main", "dev" ]
   pull_request:
-    branches: ["main", "dev"]
+    branches: [ "main", "dev" ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: pasa
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping -h localhost -uroot -ppassword" --health-interval=10s --health-timeout=5s --health-retries=3
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.3"
-          extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, pdo_mysql
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.3'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, pdo_mysql
 
-      - name: Copy .env
-        run: cp backend/.env.example backend/.env || cp backend/.env.local backend/.env
+    - name: Configure .env for testing
+      working-directory: ./backend
+      run: |
+        echo "APP_ENV=testing" > .env
+        echo "DB_CONNECTION=mysql" >> .env
+        echo "DB_HOST=127.0.0.1" >> .env
+        echo "DB_PORT=3306" >> .env
+        echo "DB_DATABASE=pasa" >> .env
+        echo "DB_USERNAME=root" >> .env
+        echo "DB_PASSWORD=password" >> .env
 
-      - name: Install Composer dependencies
-        working-directory: ./backend
-        run: composer install --prefer-dist --no-progress --no-interaction
+    - name: Import Database Schema and Seed
+      run: |
+        if [ -f database/pasa.sql ]; then
+          mysql -h 127.0.0.1 -P 3306 -u root -ppassword pasa < database/pasa.sql
+        fi
+        if [ -f database/seed.sql ]; then
+          mysql -h 127.0.0.1 -P 3306 -u root -ppassword pasa < database/seed.sql
+        fi
 
-      - name: Run PHPUnit Tests
-        working-directory: ./backend
-        run: vendor/bin/phpunit
+    - name: Install Composer dependencies
+      working-directory: ./backend
+      run: composer install --prefer-dist --no-progress --no-interaction
+
+    - name: Run PHPUnit Tests
+      working-directory: ./backend
+      run: vendor/bin/phpunit
