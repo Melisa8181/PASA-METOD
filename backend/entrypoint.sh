@@ -20,4 +20,4 @@ fi
 php artisan storage:link --no-interaction 2>/dev/null || true
 
 echo "Servidor Backend en ejecucion en http://0.0.0.0:8000"
-exec php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
+exec php -S 0.0.0.0:${PORT:-8000} -t public
